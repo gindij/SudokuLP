@@ -48,9 +48,7 @@ if __name__ == "__main__":
     print("ORIGINAL BOARD:")
     print(np.array(board))
 
-    x = cp.Variable(N, boolean=True)
-
-    eq_constrs = set()
+    constrs = set()
 
     # the values that have already been set must be respected
     for i in range(D):
@@ -58,13 +56,13 @@ if __name__ == "__main__":
             if board[i][j] > 0:
                 constr = [0] * N
                 constr[to_idx(i, j, board[i][j] - 1)] = 1
-                eq_constrs.add(tuple(constr))
+                constrs.add(tuple(constr))
 
     # each cell must have exactly one value set
     for i in range(0, N, D):
         constr = np.zeros(N)
         constr[i:i+D] = 1
-        eq_constrs.add(tuple(constr))
+        constrs.add(tuple(constr))
 
     ineq_constrs = set()
 
@@ -73,24 +71,24 @@ if __name__ == "__main__":
     # constraints to effectively behave like equality constraints
     for i in range(D):
         for v in range(D):
-            ineq_constrs.add(tuple(get_row_constr(i, v)))
-            ineq_constrs.add(tuple(get_col_constr(i, v)))
+            constrs.add(tuple(get_row_constr(i, v)))
+            constrs.add(tuple(get_col_constr(i, v)))
 
     for i in range(3):
         for j in range(3):
             for v in range(D):
-                ineq_constrs.add(tuple(get_box_constr(i, j, v)))
+                constrs.add(tuple(get_box_constr(i, j, v)))
 
-    A1 = np.array(list(eq_constrs))
-    b1 = np.ones(len(eq_constrs))
-    A2 = np.array(list(ineq_constrs))
-    b2 = np.ones(len(ineq_constrs))
+    x = cp.Variable(N, boolean=True)
+
+    A = np.array(list(constrs))
+    b = np.ones(len(constrs))
 
     # because the solution is unique, this is just a feasibility problem
     objective = cp.Minimize(0)
-    constraints = [A1 @ x == b1, A2 @ x <= b2]
+    constraints = [A @ x == b]
     problem = cp.Problem(objective, constraints)
-    problem.solve()
+    problem.solve(solver=cp.ECOS_BB)
 
     assert problem.status == cp.OPTIMAL, problem.status
 
