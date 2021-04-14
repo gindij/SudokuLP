@@ -1,13 +1,23 @@
 import cvxpy as cp
 import numpy as np
 import sys
+import time
 
-def parse_board(path):
+D = 9
+N = D**3
+
+def parse_board(path, empty_char="0"):
+    boards = []
     with open(path, "r") as board_file:
-        return [
-            [int(x) if x != "." else -1 for x in row[:-1]]
-            for row in board_file.readlines()
-        ]
+        lines = board_file.readlines()
+        i = 0
+        for line in lines[::10]:
+            boards.append([
+                [int(x) if x != empty_char else -1 for x in row[:-1]]
+                for row in lines[i+1:i+10]
+            ])
+            i += 10
+    return boards
 
 def to_idx(r, c, i):
     return r * (D ** 2) + c * D + i
@@ -38,15 +48,11 @@ def get_box_constr(i, j, v):
     return constr
 
 
-if __name__ == "__main__":
-    filename = sys.argv[1]
-    board = parse_board(filename)
+def solve_one(board, verbose=False, feasibility=False):
 
-    D = len(board)
-    N = D ** 3
-
-    print("ORIGINAL BOARD:")
-    print(np.array(board))
+    if verbose:
+        print("ORIGINAL BOARD:")
+        print(np.array(board))
 
     constrs = set()
 
@@ -85,12 +91,13 @@ if __name__ == "__main__":
     b = np.ones(len(constrs))
 
     # because the solution is unique, this is just a feasibility problem
-    objective = cp.Minimize(0)
+    obj_fn = 0 if feasibility else x.T @ np.ones(N)
+    objective = cp.Minimize(obj_fn)
     constraints = [A @ x == b]
     problem = cp.Problem(objective, constraints)
     problem.solve(solver=cp.ECOS_BB)
 
-    assert problem.status == cp.OPTIMAL, problem.status
+    solved = problem.status == cp.OPTIMAL, problem.status
 
     # show solution
     sol = np.zeros((D, D))
@@ -98,6 +105,29 @@ if __name__ == "__main__":
         for j in range(D):
             idx = to_idx(i, j, 0)
             sol[i, j] = np.argmax(x.value[idx:idx+D]) + 1
-    print()
-    print("SOLUTION:")
-    print(sol)
+    if verbose:
+        print()
+        print("SOLUTION:")
+        print(sol)
+
+    return solved
+
+if __name__ == "__main__":
+    filename = sys.argv[1]
+    boards = parse_board(filename)
+    board_idx = sys.argv[2]
+    feasibility = sys.argv[3] == "feas"
+    if board_idx != "all":
+        solve_one(board[int(board_idx)], verbose=True, feasibility=feasibility)
+    else:
+        solve_times = []
+        for i, board in enumerate(boards):
+            start = time.time()
+            solved = solve_one(board, verbose=False, feasibility=feasibility)
+            end = time.time()
+            ms = (end - start) * 1000
+            solve_times.append(ms)
+            print(f"solved problem {i+1} in {ms}ms")
+        print(f"mean solve time: {np.mean(solve_times)}")
+        print(f"median solve time: {np.median(solve_times)}")
+        print(f"std solve time: {np.std(solve_times, ddof=1)}")
