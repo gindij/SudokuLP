@@ -118,7 +118,7 @@ if __name__ == "__main__":
     board_idx = sys.argv[2]
     feasibility = sys.argv[3] == "feas"
     if board_idx != "all":
-        solve_one(board[int(board_idx)], verbose=True, feasibility=feasibility)
+        solve_one(boards[int(board_idx)], verbose=True, feasibility=feasibility)
     else:
         solve_times = []
         for i, board in enumerate(boards):
